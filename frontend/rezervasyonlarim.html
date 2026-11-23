@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rezervasyonlarım · Yemekhane</title>
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/temel.css">
+  <link rel="stylesheet" href="/css/uygulama.css">
+</head>
+<body>
+  <main class="kapsayici sayfa">
+    <div class="sayfa-baslik">
+      <h1>Rezervasyonlarım</h1>
+      <a class="dugme dugme-kucuk" href="/haftalik.html">Yeni rezervasyon</a>
+    </div>
+    <div class="sekmeler" id="sekmeler" role="group" aria-label="Duruma göre filtrele"></div>
+    <p id="bildirim" hidden></p>
+    <section class="kart"><ul class="liste" id="liste"></ul></section>
+  </main>
+
+  <script src="/js/api.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const DURUMLAR = [['', 'Tümü'], ['aktif', 'Aktif'], ['kullanildi', 'Kullanıldı'], ['iptal', 'İptal']];
+    const DURUM_ROZETI = { aktif: ['Aktif', 'rozet rozet-yesil'], kullanildi: ['Kullanıldı', 'rozet rozet-mavi'], iptal: ['İptal', 'rozet rozet-kirmizi'] };
+    let rezervasyonlar = [];
+    let filtre = '';
+
+    async function baslat() {
+      try {
+        await oturumGerekli();
+        await yukle();
+      } catch (hata) {
+        bildirimGoster($('bildirim'), hata.message);
+      }
+    }
+
+    async function yukle() {
+      ({ rezervasyonlar } = await api('/rezervasyonlar'));
+      sekmeleriCiz();
+      listeyiCiz();
+    }
+
+    function sekmeleriCiz() {
+      $('sekmeler').replaceChildren(
+        ...DURUMLAR.map(([durum, ad]) => {
+          const adet = rezervasyonlar.filter((r) => !durum || r.durum === durum).length;
+          const sekme = el('button', { type: 'button', sinif: 'sekme', 'aria-pressed': String(filtre === durum), metin: `${ad} (${adet})` });
+          sekme.addEventListener('click', () => {
+            filtre = durum;
+            sekmeleriCiz();
+            listeyiCiz();
+          });
+          return sekme;
+        }),
+      );
+    }
+
+    function listeyiCiz() {
+      const gosterilen = rezervasyonlar.filter((r) => !filtre || r.durum === filtre);
+      $('liste').replaceChildren(...(gosterilen.length ? gosterilen.map(satir) : [el('li', { sinif: 'bos', metin: 'Bu durumda rezervasyon yok.' })]));
+    }
+
+    function altBilgi(r) {
+      if (r.durum === 'kullanildi') return 'Kullanım: ' + zamanYaz(r.kullanma_zamani);
+      if (r.durum === 'iptal') return 'İptal: ' + zamanYaz(r.iptal_zamani);
+      return r.iptal_edilebilir ? 'İptal için son: ' + zamanYaz(r.rezervasyon_son) : 'İptal süresi doldu';
+    }
+
+    function satir(r) {
+      let iptal = null;
+      if (r.iptal_edilebilir) {
+        iptal = el('button', { type: 'button', sinif: 'dugme dugme-kucuk dugme-tehlike', metin: 'İptal et' });
+        iptal.addEventListener('click', () => iptalEt(r, iptal));
+      }
+      const [rozetMetni, rozetSinifi] = DURUM_ROZETI[r.durum];
+      return el(
+        'li',
+        { sinif: 'liste-oge' },
+        el(
+          'div',
+          {},
+          el('strong', { metin: `${tarihYaz(r.tarih)} · ${r.ogun}` }),
+          el('div', { sinif: 'soluk', metin: r.yemekhane }),
+          el('div', { sinif: 'soluk', metin: altBilgi(r) }),
+        ),
+        el('div', { sinif: 'sag' }, el('span', { sinif: rozetSinifi, metin: rozetMetni }), el('span', { sinif: 'fiyat', metin: tl(r.ucret) }), iptal),
+      );
+    }
+
+    async function iptalEt(r, dugme) {
+      if (!confirm('Bu rezervasyonu iptal etmek istiyor musunuz? Ücret bakiyenize iade edilir.')) return;
+      await dugmeKilitle(dugme, async () => {
+        try {
+          const sonuc = await api(`/rezervasyonlar/${r.id}/iptal`, { method: 'POST' });
+          ustBakiyeGuncelle(sonuc.bakiye);
+          bildirimGoster($('bildirim'), `${sonuc.mesaj} İade: ${tl(sonuc.iade)} · Bakiye: ${tl(sonuc.bakiye)}`, 'basari');
+          await yukle();
+        } catch (hata) {
+          bildirimGoster($('bildirim'), hata.message);
+        }
+      });
+    }
+
+    baslat();
+  </script>
+</body>
+</html>

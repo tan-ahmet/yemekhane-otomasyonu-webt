@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Değerlendirme · Yemekhane</title>
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/temel.css">
+  <link rel="stylesheet" href="/css/uygulama.css">
+</head>
+<body>
+  <main class="kapsayici sayfa">
+    <div class="sayfa-baslik">
+      <h1>Değerlendirme</h1>
+      <span class="soluk">Yalnızca kullandığınız menüleri puanlayabilirsiniz.</span>
+    </div>
+    <p id="bildirim" hidden></p>
+    <h2 id="bekleyen-baslik"></h2>
+    <div class="izgara izgara-2" id="bekleyenler"></div>
+    <h2 id="yapilan-baslik" style="margin-top:1.5rem"></h2>
+    <section class="kart"><ul class="liste" id="yapilanlar"></ul></section>
+  </main>
+
+  <script src="/js/api.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    async function baslat() {
+      try {
+        await oturumGerekli();
+        await yukle();
+      } catch (hata) {
+        bildirimGoster($('bildirim'), hata.message);
+      }
+    }
+
+    async function yukle() {
+      const menuler = await api('/degerlendirmeler');
+      const bekleyen = menuler.filter((m) => m.degerlendirilebilir);
+      const yapilan = menuler.filter((m) => !m.degerlendirilebilir);
+      $('bekleyen-baslik').textContent = `Puan bekleyenler (${bekleyen.length})`;
+      $('yapilan-baslik').textContent = `Değerlendirdikleriniz (${yapilan.length})`;
+      $('bekleyenler').replaceChildren(...(bekleyen.length ? bekleyen.map(formKarti) : [el('p', { sinif: 'kart bos', metin: 'Puan bekleyen menünüz yok.' })]));
+      $('yapilanlar').replaceChildren(...(yapilan.length ? yapilan.map(yapilanSatiri) : [el('li', { sinif: 'bos', metin: 'Henüz değerlendirme yapmadınız.' })]));
+    }
+
+    function formKarti(m) {
+      const ad = 'm' + m.menu_id;
+      const yildizlar = [5, 4, 3, 2, 1].flatMap((p) => [
+        el('input', { type: 'radio', name: 'puan', value: p, id: `${ad}-${p}` }),
+        el('label', { for: `${ad}-${p}`, title: `${p} puan`, metin: '★' }),
+      ]);
+      const yorum = el('textarea', { id: `${ad}-yorum`, name: 'yorum', rows: 2, maxLength: 500 });
+      const gonder = el('button', { type: 'submit', sinif: 'dugme dugme-kucuk', metin: 'Gönder' });
+      const form = el(
+        'form',
+        { sinif: 'kart' },
+        el('strong', { metin: `${tarihYaz(m.tarih)} · ${m.ogun}` }),
+        el('p', { sinif: 'soluk', metin: `${m.yemekhane} — ${m.yemekler}` }),
+        el('fieldset', { style: 'border:0;padding:0;margin:0 0 .5rem' }, el('legend', { sinif: 'soluk', metin: 'Puanınız (1–5)' }), el('div', { sinif: 'yildizlar' }, yildizlar)),
+        el('div', { sinif: 'form-alan' }, el('label', { for: `${ad}-yorum`, metin: 'Yorum (isteğe bağlı)' }), yorum),
+        gonder,
+      );
+      form.addEventListener('submit', async (olay) => {
+        olay.preventDefault();
+        const secili = form.querySelector('input[name=puan]:checked');
+        await dugmeKilitle(gonder, async () => {
+          try {
+            const sonuc = await api('/degerlendirmeler', {
+              method: 'POST',
+              govde: { menu_id: m.menu_id, puan: secili ? Number(secili.value) : 0, yorum: yorum.value },
+            });
+            bildirimGoster($('bildirim'), sonuc.mesaj, 'basari');
+            await yukle();
+          } catch (hata) {
+            bildirimGoster($('bildirim'), hata.message);
+          }
+        });
+      });
+      return form;
+    }
+
+    function yapilanSatiri(m) {
+      return el(
+        'li',
+        { sinif: 'liste-oge' },
+        el(
+          'div',
+          {},
+          el('strong', { metin: `${tarihYaz(m.tarih)} · ${m.ogun}` }),
+          el('div', { sinif: 'soluk', metin: m.yemekhane }),
+          m.yorum ? el('div', { metin: `“${m.yorum}”` }) : null,
+        ),
+        el('span', { sinif: 'puan-goster', 'aria-label': `${m.puan} puan`, metin: '★'.repeat(m.puan) + '☆'.repeat(5 - m.puan) }),
+      );
+    }
+
+    baslat();
+  </script>
+</body>
+</html>

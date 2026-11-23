@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bakiye · Yemekhane</title>
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/temel.css">
+  <link rel="stylesheet" href="/css/uygulama.css">
+</head>
+<body>
+  <main class="kapsayici sayfa">
+    <div class="sayfa-baslik"><h1>Bakiye</h1></div>
+    <p id="bildirim" hidden></p>
+    <div class="izgara izgara-2">
+      <section class="kart">
+        <h2>Güncel bakiye</h2>
+        <div class="bakiye-buyuk" id="bakiye">—</div>
+        <p class="soluk" id="okunan"></p>
+      </section>
+      <section class="kart">
+        <h2>Bakiye yükle</h2>
+        <form id="yukle-formu" novalidate>
+          <div class="hizli-tutar">
+            <button class="dugme dugme-ikincil dugme-kucuk" type="button" data-tutar="50">50 TL</button>
+            <button class="dugme dugme-ikincil dugme-kucuk" type="button" data-tutar="100">100 TL</button>
+            <button class="dugme dugme-ikincil dugme-kucuk" type="button" data-tutar="250">250 TL</button>
+          </div>
+          <div class="form-alan">
+            <label for="tutar">Tutar (TL)</label>
+            <input id="tutar" name="tutar" type="number" inputmode="decimal" step="0.01" placeholder="10 – 1000 TL">
+          </div>
+          <button class="dugme tam-genislik" type="submit">Yükle</button>
+        </form>
+      </section>
+    </div>
+    <section class="kart">
+      <h2>Hareket geçmişi</h2>
+      <ul class="liste" id="hareketler"></ul>
+    </section>
+  </main>
+
+  <script src="/js/api.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const form = $('yukle-formu');
+    const TUR = { yukleme: 'Bakiye yükleme', rezervasyon: 'Rezervasyon', iade: 'İade' };
+
+    async function baslat() {
+      try {
+        await oturumGerekli();
+        for (const d of form.querySelectorAll('[data-tutar]')) d.addEventListener('click', () => (form.tutar.value = d.dataset.tutar));
+        form.addEventListener('submit', yukle);
+        await ozetiGetir();
+      } catch (hata) {
+        bildirimGoster($('bildirim'), hata.message);
+      }
+    }
+
+    async function ozetiGetir() {
+      const ozet = await api('/bakiye');
+      $('bakiye').textContent = tl(ozet.bakiye);
+      $('okunan').textContent = ozet.okunan_sunucu === 'kaynak' ? 'Son işleminiz yeni olduğu için kaynak sunucudan okundu.' : 'Hareketlerinizin toplamına eşittir.';
+      ustBakiyeGuncelle(ozet.bakiye);
+      $('hareketler').replaceChildren(
+        ...(ozet.hareketler.length
+          ? ozet.hareketler.map((h) =>
+              el(
+                'li',
+                { sinif: 'liste-oge' },
+                el('div', {}, el('strong', { metin: TUR[h.tur] }), el('div', { sinif: 'soluk', metin: `${h.aciklama ?? ''} · ${zamanYaz(h.olusturma)}` })),
+                el('span', { sinif: h.tutar >= 0 ? 'tutar-arti' : 'tutar-eksi', metin: (h.tutar >= 0 ? '+' : '') + tl(h.tutar) }),
+              ),
+            )
+          : [el('li', { sinif: 'bos', metin: 'Henüz hareket yok.' })]),
+      );
+    }
+
+    async function yukle(olay) {
+      olay.preventDefault();
+      bildirimGizle($('bildirim'));
+      await dugmeKilitle(form.querySelector('[type=submit]'), async () => {
+        try {
+          const sonuc = await api('/bakiye/yukle', { method: 'POST', govde: { tutar: Number(form.tutar.value) } });
+          ustBakiyeGuncelle(sonuc.bakiye);
+          bildirimGoster($('bildirim'), `${sonuc.mesaj} Yeni bakiye: ${tl(sonuc.bakiye)}`, 'basari');
+          form.reset();
+          await ozetiGetir();
+        } catch (hata) {
+          bildirimGoster($('bildirim'), hata.message);
+        }
+      });
+    }
+
+    baslat();
+  </script>
+</body>
+</html>

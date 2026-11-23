@@ -3,68 +3,112 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Yemekhane Otomasyonu · Başlangıç</title>
+  <title>Günün Menüsü · Yemekhane</title>
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/css/temel.css">
-  <style>
-    /* Yalnızca bu geçici sayfaya ait stiller */
-    .fis {
-      background: var(--yuzey);
-      margin-block: 2rem;
-      padding: 1.5rem var(--bosluk);
-      border-radius: var(--kose);
-      /* yemek fişi görünümü: alt kenarda yırtma çizgisi */
-      border-bottom: 2px dashed var(--cizgi);
-    }
-    .fis h1 { margin-bottom: 0.25rem; }
-    .fis .alt { color: var(--metin-soluk); margin-bottom: 1.5rem; }
-    .servisler { width: 100%; border-collapse: collapse; font-size: var(--boyut-kucuk); }
-    .servisler th, .servisler td { text-align: left; padding: 0.5rem 0.25rem; border-bottom: 1px solid var(--cizgi); }
-    .servisler td:last-child { white-space: nowrap; }
-    #uygulama-durumu { margin-top: 1.5rem; }
-  </style>
+  <link rel="stylesheet" href="/css/uygulama.css">
 </head>
 <body>
-  <main class="kapsayici">
-    <section class="fis">
-      <h1>Yemekhane Otomasyonu</h1>
-      <p class="alt">Apache çalışıyor. Bu sayfa başlangıç paketine ait; kendi giriş ekranınızla değiştirin.</p>
+  <main class="kapsayici sayfa">
+    <div class="sayfa-baslik">
+      <h1>Günün Menüsü</h1>
+      <span id="tarih-yazisi" class="soluk"></span>
+    </div>
 
-      <div class="tablo-kaydir">
-        <table class="servisler">
-          <thead>
-            <tr><th>Servis</th><th>Görevi</th><th>Bilgisayarınızdan</th></tr>
-          </thead>
-          <tbody>
-            <tr><td>frontend</td><td>HTML/CSS, yönlendirme</td><td>localhost:8080</td></tr>
-            <tr><td>mysql-primary</td><td>yazma</td><td>localhost:3307</td></tr>
-            <tr><td>mysql-replica</td><td>okuma, salt okunur</td><td>localhost:3308</td></tr>
-            <tr><td>redis</td><td>menü önbelleği, oturum</td><td>localhost:6379</td></tr>
-            <tr><td>uygulama</td><td>sizin yazacağınız servis</td><td>Apache üzerinden</td></tr>
-          </tbody>
-        </table>
+    <section class="kart secim-satiri">
+      <div class="form-alan">
+        <label for="yemekhane">Yemekhane</label>
+        <select id="yemekhane"></select>
       </div>
-
-      <p id="uygulama-durumu" class="bildirim" role="status">Uygulama servisi kontrol ediliyor…</p>
+      <div class="form-alan">
+        <label for="ogun">Öğün</label>
+        <select id="ogun"></select>
+      </div>
+      <div class="form-alan">
+        <label for="tarih">Tarih</label>
+        <input id="tarih" type="date">
+      </div>
     </section>
+
+    <p id="bildirim" hidden></p>
+
+    <section id="menu-alani" class="kart" hidden>
+      <h2 id="menu-baslik"></h2>
+      <div class="menu-ozet">
+        <div><span>Ücretiniz</span><strong id="fiyat"></strong></div>
+        <div><span>Toplam kalori</span><strong id="kalori"></strong></div>
+        <div><span>Rezervasyon son</span><strong id="son-saat"></strong></div>
+      </div>
+      <ul id="yemek-listesi" class="yemek-listesi"></ul>
+      <p id="vejetaryen-bilgi" class="soluk"></p>
+    </section>
+
+    <p id="menu-yok" class="kart bos" hidden>Bu yemekhanede seçilen gün ve öğün için menü bulunmuyor.</p>
   </main>
 
+  <script src="/js/api.js"></script>
   <script>
-    // Web API modunda /api/ isteği uygulamaya gider. 502/503 ise uygulama yok ya da çalışmıyor.
-    const kutu = document.getElementById('uygulama-durumu');
-    fetch('/api/', { headers: { Accept: 'application/json' } })
-      .then(yanit => {
-        if (yanit.status === 502 || yanit.status === 503) {
-          kutu.textContent = 'Uygulama servisine ulaşılamıyor. docker-compose.yml içindeki uygulama servisini ekleyip "docker compose up -d" çalıştırın.';
-          kutu.classList.add('bildirim-hata');
-        } else {
-          kutu.textContent = 'Uygulama servisi yanıt veriyor (HTTP ' + yanit.status + ').';
-          kutu.classList.add('bildirim-basari');
+    const $ = (id) => document.getElementById(id);
+
+    async function baslat() {
+      try {
+        await oturumGerekli();
+        const secenekler = await api('/menu/secenekler');
+        secenekleriDoldur($('yemekhane'), secenekler.yemekhaneler);
+        secenekleriDoldur($('ogun'), secenekler.ogunler);
+        $('ogun').value = '2';
+        $('tarih').value = secenekler.bugun;
+        for (const id of ['yemekhane', 'ogun', 'tarih']) $(id).addEventListener('change', menuyuYukle);
+        await menuyuYukle();
+      } catch (hata) {
+        bildirimGoster($('bildirim'), hata.message);
+      }
+    }
+
+    async function menuyuYukle() {
+      bildirimGizle($('bildirim'));
+      $('menu-alani').hidden = true;
+      $('menu-yok').hidden = true;
+      $('tarih-yazisi').textContent = $('tarih').value ? tarihYaz($('tarih').value) : '';
+      try {
+        const q = new URLSearchParams({ yemekhane: $('yemekhane').value, ogun: $('ogun').value, tarih: $('tarih').value });
+        const yanit = await api('/menu/gunun?' + q);
+        if (!yanit.menu) {
+          $('menu-yok').hidden = false;
+          return;
         }
-      })
-      .catch(() => {
-        kutu.textContent = 'İstek gönderilemedi. Apache günlüğüne bakın: docker compose logs frontend';
-        kutu.classList.add('bildirim-hata');
-      });
+        menuyuCiz(yanit.menu);
+      } catch (hata) {
+        bildirimGoster($('bildirim'), hata.message);
+      }
+    }
+
+    function menuyuCiz(menu) {
+      $('menu-baslik').textContent = `${menu.yemekhane} · ${menu.ogun}`;
+      $('fiyat').textContent = tl(menu.fiyat);
+      $('kalori').textContent = menu.toplam_kalori + ' kcal';
+      $('son-saat').textContent = saatYaz(menu.rezervasyon_son);
+      $('vejetaryen-bilgi').textContent = menu.tumu_vejetaryen ? 'Menünün tamamı vejetaryen.' : 'Menüde vejetaryen olmayan yemek var.';
+      $('yemek-listesi').replaceChildren(...menu.yemekler.map(yemekOgesi));
+      $('menu-alani').hidden = false;
+    }
+
+    function yemekOgesi(yemek) {
+      return el(
+        'li',
+        { sinif: 'yemek' },
+        el('div', { sinif: 'yemek-ust' }, el('span', { metin: yemek.kategori }), el('span', { metin: yemek.kalori + ' kcal' })),
+        el('div', { sinif: 'yemek-ad', metin: yemek.ad }),
+        el(
+          'div',
+          { sinif: 'rozetler' },
+          yemek.vejetaryen ? el('span', { sinif: 'rozet rozet-yesil', metin: 'Vejetaryen' }) : null,
+          yemek.alerjenler.map((a) => el('span', { sinif: 'rozet rozet-sari', metin: a })),
+        ),
+      );
+    }
+
+    baslat();
   </script>
 </body>
 </html>

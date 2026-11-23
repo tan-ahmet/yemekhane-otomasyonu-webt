@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Haftalık Menü · Yemekhane</title>
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/temel.css">
+  <link rel="stylesheet" href="/css/uygulama.css">
+</head>
+<body>
+  <main class="kapsayici sayfa">
+    <div class="sayfa-baslik">
+      <h1>Haftalık Menü ve Rezervasyon</h1>
+      <span id="aralik" class="soluk"></span>
+    </div>
+
+    <section class="kart secim-satiri">
+      <div class="form-alan">
+        <label for="yemekhane">Yemekhane</label>
+        <select id="yemekhane"></select>
+      </div>
+      <div class="form-alan">
+        <label for="baslangic">Başlangıç günü</label>
+        <input id="baslangic" type="date">
+      </div>
+    </section>
+
+    <p id="bildirim" hidden></p>
+    <section id="hafta"></section>
+  </main>
+
+  <script src="/js/api.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const DURUM_ROZETI = {
+      aktif: ['Rezerve edildi', 'rozet rozet-yesil'],
+      kullanildi: ['Kullanıldı', 'rozet rozet-mavi'],
+      iptal: ['İptal edilmişti', 'rozet'],
+    };
+    let bugun = '';
+
+    async function baslat() {
+      try {
+        await oturumGerekli();
+        const secenekler = await api('/menu/secenekler');
+        bugun = secenekler.bugun;
+        secenekleriDoldur($('yemekhane'), secenekler.yemekhaneler, (y) => `${y.ad} (${y.kapasite} kişi)`);
+        $('baslangic').value = bugun;
+        $('yemekhane').addEventListener('change', haftayiYukle);
+        $('baslangic').addEventListener('change', haftayiYukle);
+        await haftayiYukle();
+      } catch (hata) {
+        bildirimGoster($('bildirim'), hata.message);
+      }
+    }
+
+    async function haftayiYukle() {
+      try {
+        const q = new URLSearchParams({ yemekhane: $('yemekhane').value, baslangic: $('baslangic').value });
+        const hafta = await api('/menu/haftalik?' + q);
+        $('aralik').textContent = `${kisaTarihYaz(hafta.baslangic)} – ${kisaTarihYaz(hafta.bitis)}`;
+        $('hafta').replaceChildren(...hafta.gunler.map(gunBolumu));
+      } catch (hata) {
+        bildirimGoster($('bildirim'), hata.message);
+      }
+    }
+
+    function gunBolumu(gun) {
+      return el(
+        'section',
+        { sinif: 'gun' },
+        el('h2', { sinif: 'gun-baslik' }, tarihYaz(gun.tarih), gun.tarih === bugun ? el('span', { sinif: 'rozet rozet-mavi', metin: 'Bugün' }) : null),
+        el('div', { sinif: 'gun-ogunler' }, gun.menuler.length ? gun.menuler.map(ogunKarti) : el('p', { sinif: 'soluk', metin: 'Bu gün için menü yayımlanmadı.' })),
+      );
+    }
+
+    function ogunKarti(m) {
+      const azYer = m.bos_yer <= Math.max(5, m.kapasite * 0.05);
+      const dugme = el('button', {
+        type: 'button',
+        sinif: 'dugme dugme-kucuk',
+        disabled: !m.rezerve_edilebilir,
+        title: m.pasif_nedeni,
+        metin: m.rezerve_edilebilir ? 'Rezervasyon yap' : m.pasif_nedeni,
+      });
+      dugme.addEventListener('click', () => rezervasyonYap(m, dugme));
+      const rozet = DURUM_ROZETI[m.rezervasyon_durum];
+      return el(
+        'article',
+        { sinif: 'ogun-kart' + (m.rezerve_edilebilir ? '' : ' pasif') },
+        el('div', { sinif: 'satir-arasi' }, el('span', { sinif: 'ogun-ad', metin: m.ogun }), el('span', { sinif: 'fiyat', metin: tl(m.fiyat) })),
+        el('p', { sinif: 'ogun-yemekler', metin: m.yemekler }),
+        el(
+          'div',
+          { sinif: 'satir-arasi kucuk-yazi' },
+          el('span', { sinif: 'bos-yer' + (azYer ? ' az' : ''), metin: `${m.bos_yer} / ${m.kapasite} boş yer` }),
+          el('span', { sinif: 'soluk', metin: 'Son: ' + saatYaz(m.rezervasyon_son) }),
+        ),
+        el('div', { sinif: 'satir-arasi' }, rozet ? el('span', { sinif: rozet[1], metin: rozet[0] }) : el('span'), dugme),
+      );
+    }
+
+    async function rezervasyonYap(m, dugme) {
+      bildirimGizle($('bildirim'));
+      await dugmeKilitle(dugme, async () => {
+        try {
+          const sonuc = await api('/rezervasyonlar', { method: 'POST', govde: { menu_id: m.menu_id } });
+          ustBakiyeGuncelle(sonuc.bakiye);
+          bildirimGoster($('bildirim'), `${sonuc.mesaj} Ücret: ${tl(sonuc.ucret)} · Kalan bakiye: ${tl(sonuc.bakiye)}`, 'basari');
+          await haftayiYukle();
+        } catch (hata) {
+          bildirimGoster($('bildirim'), hata.message);
+        }
+      });
+    }
+
+    baslat();
+  </script>
+</body>
+</html>
