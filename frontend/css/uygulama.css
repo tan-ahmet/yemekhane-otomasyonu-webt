@@ -27,6 +27,7 @@
 .tam-genislik { width: 100%; }
 .izgara { display: grid; gap: 1rem; }
 .secim-satiri { display: grid; gap: .75rem; }
+.secim-satiri .form-alan { margin-bottom: 0; }
 .secim-satiri input, .secim-satiri select { height: 46px; }
 #bildirim { margin-bottom: 1rem; }
 #form-kart { scroll-margin-top: 130px; }
@@ -49,7 +50,8 @@
 .yemek-listesi { list-style: none; margin: 0; padding: 0; }
 .yemek { padding: .7rem 0; border-bottom: 1px dashed var(--cizgi); }
 .yemek:last-child { border-bottom: 0; }
-.yemek-ust { display: flex; justify-content: space-between; font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: var(--metin-soluk); }
+.yemek-ust { display: flex; justify-content: space-between; font-size: .75rem; color: var(--metin-soluk); }
+.yemek-ust span:first-child { text-transform: uppercase; letter-spacing: .04em; }
 .yemek-ad { font-weight: 600; font-size: 1.05rem; }
 .rozetler { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .3rem; }
 
