@@ -4,7 +4,7 @@
 # Durum:        docker compose ps -a
 # Sıfırlama:    docker compose down -v   (tüm veri silinir, yeniden üretilir)
 # =====================================================================
-name: yemekhane
+name: yemekhane-odev
 
 # Ortak ayarlar (YAML anchor). Ders ortamı içindir; şifreler bilerek açıktır.
 x-mysql-ortak: &mysql-ortak
@@ -50,7 +50,7 @@ services:
       MYSQL_USER: yemekhane_app
       MYSQL_PASSWORD: Uyg_2026
     ports:
-      - "3307:3306"
+      - "3317:3306"
     volumes:
       - ./db/init:/docker-entrypoint-initdb.d:ro
       - mysql-primary-veri:/var/lib/mysql
@@ -67,7 +67,7 @@ services:
       TZ: Europe/Istanbul
       MYSQL_ROOT_PASSWORD: yemekhane_kok
     ports:
-      - "3308:3306"
+      - "3318:3306"
     volumes:
       - mysql-replica-veri:/var/lib/mysql
 
@@ -102,7 +102,7 @@ services:
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "6379:6379"
+      - "6389:6379"
     volumes:
       - redis-veri:/data
     healthcheck:
@@ -123,7 +123,7 @@ services:
       # Uygulamanızın container içinde dinlediği adres. Port farklıysa burayı değiştirin.
       UYGULAMA_ADRES: http://uygulama:8000
     ports:
-      - "8080:80"
+      - "8090:80"
     volumes:
       - ./frontend:/usr/local/apache2/htdocs:ro
     healthcheck:
