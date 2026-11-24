@@ -1,7 +1,10 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { MenuGirdisi, YonetimRepository } from './yonetim.repository';
+import { MenuOnbellek, menuAnahtari } from '../menu/menu.onbellek';
 import { bugun, gunEkle } from '../ortak/tarih';
 import { tamSayiAl, tarihAl, tutarAl } from '../ortak/dogrulama';
+
+const IKINCI_SILME_MS = 2000;
 
 interface MenuGovdesi {
   yemekhane_id?: unknown;
@@ -14,7 +17,10 @@ interface MenuGovdesi {
 
 @Injectable()
 export class YonetimService {
-  constructor(private yonetim: YonetimRepository) {}
+  constructor(
+    private yonetim: YonetimRepository,
+    private onbellek: MenuOnbellek,
+  ) {}
 
   async rapor(baslangicMetni: unknown, bitisMetni: unknown, yemekhaneMetni: unknown) {
     const baslangic = tarihAl(baslangicMetni, gunEkle(bugun(), -3));
@@ -48,6 +54,7 @@ export class YonetimService {
     } catch (hata) {
       throw this.cevir(hata);
     }
+    await this.onbellegiTemizle(girdi.yemekhaneId, girdi.tarih, girdi.ogunId);
     return { mesaj: 'Menü oluşturuldu.', menu_id: menuId };
   }
 
@@ -58,7 +65,14 @@ export class YonetimService {
     } catch (hata) {
       throw this.cevir(hata);
     }
+    await this.onbellegiTemizle(mevcut.yemekhane_id, mevcut.tarih, mevcut.ogun_id);
     return { mesaj: 'Menü güncellendi.', menu_id: mevcut.id };
+  }
+
+  private async onbellegiTemizle(yemekhaneId: number, tarih: string, ogunId: number) {
+    const anahtar = menuAnahtari(yemekhaneId, tarih, ogunId);
+    await this.onbellek.sil(anahtar, 'yönetici menüyü değiştirdi');
+    setTimeout(() => this.onbellek.sil(anahtar, 'replika gecikmesine karşı ikinci silme').catch(() => null), IKINCI_SILME_MS).unref();
   }
 
   private fiyatVeYemekler(govde: MenuGovdesi) {

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { HaftalikSatir, MenuDetaySatiri, MenuRepository } from './menu.repository';
+import { MenuOnbellek, menuAnahtari } from './menu.onbellek';
 import { OturumKullanicisi, Rol } from '../oturum/oturum.service';
 import { bugun, gunEkle } from '../ortak/tarih';
 import { tamSayiAl, tarihAl } from '../ortak/dogrulama';
@@ -33,7 +34,10 @@ export function roleGoreFiyat(rol: Rol, f: { ogrenci_fiyati: number; personel_fi
 
 @Injectable()
 export class MenuService {
-  constructor(private menuler: MenuRepository) {}
+  constructor(
+    private menuler: MenuRepository,
+    private onbellek: MenuOnbellek,
+  ) {}
 
   async secenekler() {
     const [yemekhaneler, ogunler] = await Promise.all([this.menuler.yemekhaneler(), this.menuler.ogunler()]);
@@ -51,8 +55,23 @@ export class MenuService {
   }
 
   async menuyuGetir(yemekhaneId: number, tarih: string, ogunId: number): Promise<Menu | null> {
+    const anahtar = menuAnahtari(yemekhaneId, tarih, ogunId);
+    const onbellekte = await this.onbellek.getir<Menu>(anahtar);
+    if (onbellekte) {
+      this.onbellek.log(`${anahtar} → Redis'ten okundu`);
+      return onbellekte;
+    }
     const satirlar = await this.menuler.menuDetay(yemekhaneId, tarih, ogunId);
-    return satirlar.length ? this.menuyuOlustur(satirlar) : null;
+    if (!satirlar.length) {
+      this.onbellek.log(`${anahtar} → veritabanında menü yok`);
+      return null;
+    }
+    const menu = this.menuyuOlustur(satirlar);
+    const sure = await this.onbellek.yaz(anahtar, tarih, menu);
+    this.onbellek.log(
+      `${anahtar} → veritabanından (replika) okundu, ${sure ? `Redis'e yazıldı (TTL ${sure} sn, gün sonuna kadar)` : 'gün geçtiği için önbelleğe yazılmadı'}`,
+    );
+    return menu;
   }
 
   private menuyuOlustur(satirlar: MenuDetaySatiri[]): Menu {
