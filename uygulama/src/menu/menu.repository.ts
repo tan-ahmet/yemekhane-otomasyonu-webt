@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Pool } from 'mysql2/promise';
-import { OKUMA_DB, sorgula } from '../veritabani/veritabani.module';
+import { OKUMA_DB, YAZMA_DB, sorgula } from '../veritabani/veritabani.module';
 
 export interface MenuDetaySatiri {
   menu_id: number;
@@ -20,6 +20,7 @@ export interface MenuDetaySatiri {
   vejetaryen: number;
   alerjenler: string | null;
   alerjen_idler: string | null;
+  yarim_porsiyon_orani: number | null;
 }
 
 export interface HaftalikSatir {
@@ -36,11 +37,16 @@ export interface HaftalikSatir {
   yemekler: string | null;
   rezervasyon_id: number | null;
   rezervasyon_durum: string | null;
+  yarim_porsiyon_orani: number | null;
+  alerjen_idler: string | null;
 }
 
 @Injectable()
 export class MenuRepository {
-  constructor(@Inject(OKUMA_DB) private okuma: Pool) {}
+  constructor(
+    @Inject(YAZMA_DB) private yazma: Pool,
+    @Inject(OKUMA_DB) private okuma: Pool,
+  ) {}
 
   yemekhaneler() {
     return sorgula<{ id: number; ad: string; kapasite: number }>(this.okuma, 'SELECT id, ad, kapasite FROM yemekhaneler ORDER BY id');
@@ -56,9 +62,11 @@ export class MenuRepository {
   menuDetay(yemekhaneId: number, tarih: string, ogunId: number) {
     return sorgula<MenuDetaySatiri>(
       this.okuma,
-      `SELECT * FROM v_menu_detay
-        WHERE yemekhane_id = ? AND tarih = ? AND ogun_id = ?
-        ORDER BY kategori_sira, yemek`,
+      `SELECT d.*, o.yarim_porsiyon_orani
+         FROM v_menu_detay d
+         JOIN ogunler o ON o.id = d.ogun_id
+        WHERE d.yemekhane_id = ? AND d.tarih = ? AND d.ogun_id = ?
+        ORDER BY d.kategori_sira, d.yemek`,
       [yemekhaneId, tarih, ogunId],
     );
   }
@@ -68,7 +76,10 @@ export class MenuRepository {
       this.okuma,
       `SELECT d.menu_id, d.tarih, d.ogun_id, d.ogun, d.kapasite, d.bos_yer, d.rezervasyon_son,
               d.rezervasyon_son > NOW() AS acik,
-              m.ogrenci_fiyati, m.personel_fiyati,
+              m.ogrenci_fiyati, m.personel_fiyati, o.yarim_porsiyon_orani,
+              (SELECT GROUP_CONCAT(DISTINCT ya.alerjen_id)
+                 FROM menu_yemekleri my JOIN yemek_alerjenleri ya ON ya.yemek_id = my.yemek_id
+                WHERE my.menu_id = d.menu_id) AS alerjen_idler,
               (SELECT GROUP_CONCAT(y.ad ORDER BY k.sira, y.ad SEPARATOR ', ')
                  FROM menu_yemekleri my
                  JOIN yemekler y ON y.id = my.yemek_id
@@ -82,6 +93,16 @@ export class MenuRepository {
         WHERE d.yemekhane_id = ? AND d.tarih BETWEEN ? AND ?
         ORDER BY d.tarih, o.sira`,
       [kullaniciId, yemekhaneId, baslangic, bitis],
+    );
+  }
+
+  kullaniciAlerjenleri(kullaniciId: number, kaynaktan: boolean) {
+    return sorgula<{ id: number; ad: string }>(
+      kaynaktan ? this.yazma : this.okuma,
+      `SELECT a.id, a.ad
+         FROM kullanici_alerjenleri ka JOIN alerjenler a ON a.id = ka.alerjen_id
+        WHERE ka.kullanici_id = ?`,
+      [kullaniciId],
     );
   }
 }

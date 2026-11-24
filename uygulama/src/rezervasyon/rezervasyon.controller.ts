@@ -15,7 +15,7 @@ export class RezervasyonController {
   }
 
   @Post()
-  yap(@Kullanici() kullanici: OturumKullanicisi, @Token() token: string, @Body() govde: { menu_id?: unknown }) {
+  yap(@Kullanici() kullanici: OturumKullanicisi, @Token() token: string, @Body() govde: { menu_id?: unknown; porsiyon?: unknown }) {
     return this.rezervasyon.yap(kullanici, token, govde);
   }
 

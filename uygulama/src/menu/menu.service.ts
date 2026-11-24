@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { HaftalikSatir, MenuDetaySatiri, MenuRepository } from './menu.repository';
 import { MenuOnbellek, menuAnahtari } from './menu.onbellek';
-import { OturumKullanicisi, Rol } from '../oturum/oturum.service';
+import { OturumKullanicisi, OturumService, Rol } from '../oturum/oturum.service';
 import { bugun, gunEkle } from '../ortak/tarih';
 import { tamSayiAl, tarihAl } from '../ortak/dogrulama';
 
@@ -17,6 +17,7 @@ export interface Menu {
   personel_fiyati: number;
   toplam_kalori: number;
   tumu_vejetaryen: boolean;
+  yarim_porsiyon_orani: number | null;
   yemekler: {
     id: number;
     ad: string;
@@ -32,12 +33,22 @@ export function roleGoreFiyat(rol: Rol, f: { ogrenci_fiyati: number; personel_fi
   return rol === 'ogrenci' ? f.ogrenci_fiyati : f.personel_fiyati;
 }
 
+export function yarimFiyat(fiyat: number, oran: number | null): number | null {
+  return oran === null ? null : Math.round(fiyat * oran * 100) / 100;
+}
+
 @Injectable()
 export class MenuService {
   constructor(
     private menuler: MenuRepository,
     private onbellek: MenuOnbellek,
+    private oturum: OturumService,
   ) {}
+
+  private async alerjenHaritasi(kullanici: OturumKullanicisi): Promise<Map<number, string>> {
+    const liste = await this.menuler.kullaniciAlerjenleri(kullanici.id, this.oturum.kaynaktanOkunsunMu(kullanici));
+    return new Map(liste.map((a) => [a.id, a.ad]));
+  }
 
   async secenekler() {
     const [yemekhaneler, ogunler] = await Promise.all([this.menuler.yemekhaneler(), this.menuler.ogunler()]);
@@ -51,7 +62,22 @@ export class MenuService {
 
     const menu = await this.menuyuGetir(yemekhaneId, tarih, ogunId);
     if (!menu) return { tarih, menu: null };
-    return { tarih, menu: { ...menu, fiyat: roleGoreFiyat(kullanici.rol, menu) } };
+    const alerjenler = await this.alerjenHaritasi(kullanici);
+    const fiyat = roleGoreFiyat(kullanici.rol, menu);
+    const yemekler = menu.yemekler.map((y) => {
+      const uyari = y.alerjen_idler.filter((id) => alerjenler.has(id)).map((id) => alerjenler.get(id)!);
+      return { ...y, uyari: uyari.length ? uyari : null };
+    });
+    return {
+      tarih,
+      menu: {
+        ...menu,
+        fiyat,
+        yarim_fiyat: yarimFiyat(fiyat, menu.yarim_porsiyon_orani),
+        yemekler,
+        uyari_sayisi: yemekler.filter((y) => y.uyari).length,
+      },
+    };
   }
 
   async menuyuGetir(yemekhaneId: number, tarih: string, ogunId: number): Promise<Menu | null> {
@@ -97,6 +123,7 @@ export class MenuService {
       personel_fiyati: ilk.personel_fiyati,
       toplam_kalori: yemekler.reduce((toplam, y) => toplam + y.kalori, 0),
       tumu_vejetaryen: yemekler.every((y) => y.vejetaryen),
+      yarim_porsiyon_orani: ilk.yarim_porsiyon_orani,
       yemekler,
     };
   }
@@ -105,11 +132,14 @@ export class MenuService {
     const yemekhaneId = tamSayiAl(yemekhaneMetni, 'Geçerli bir yemekhane seçin.');
     const baslangic = tarihAl(baslangicMetni, bugun());
     const bitis = gunEkle(baslangic, 6);
-    const satirlar = await this.menuler.haftalik(yemekhaneId, baslangic, bitis, kullanici.id);
+    const [satirlar, alerjenler] = await Promise.all([
+      this.menuler.haftalik(yemekhaneId, baslangic, bitis, kullanici.id),
+      this.alerjenHaritasi(kullanici),
+    ]);
 
     const gunler = new Map<string, ReturnType<MenuService['haftalikOgun']>[]>();
     for (let i = 0; i < 7; i++) gunler.set(gunEkle(baslangic, i), []);
-    for (const s of satirlar) gunler.get(s.tarih)?.push(this.haftalikOgun(s, kullanici));
+    for (const s of satirlar) gunler.get(s.tarih)?.push(this.haftalikOgun(s, kullanici, alerjenler));
 
     return {
       baslangic,
@@ -119,7 +149,10 @@ export class MenuService {
     };
   }
 
-  private haftalikOgun(s: HaftalikSatir, kullanici: OturumKullanicisi) {
+  private haftalikOgun(s: HaftalikSatir, kullanici: OturumKullanicisi, alerjenler: Map<number, string>) {
+    const fiyat = roleGoreFiyat(kullanici.rol, s);
+    const menuAlerjenleri = s.alerjen_idler ? s.alerjen_idler.split(',').map(Number) : [];
+    const uyari = menuAlerjenleri.filter((id) => alerjenler.has(id)).map((id) => alerjenler.get(id)!);
     const rezerveli = s.rezervasyon_durum === 'aktif' || s.rezervasyon_durum === 'kullanildi';
     const acik = s.acik === 1;
     return {
@@ -129,7 +162,9 @@ export class MenuService {
       yemekler: s.yemekler,
       kapasite: s.kapasite,
       bos_yer: s.bos_yer,
-      fiyat: roleGoreFiyat(kullanici.rol, s),
+      fiyat,
+      yarim_fiyat: yarimFiyat(fiyat, s.yarim_porsiyon_orani),
+      alerjen_uyarisi: uyari.length ? uyari : null,
       rezervasyon_son: s.rezervasyon_son,
       rezervasyon_durum: s.rezervasyon_durum,
       rezerve_edilebilir: acik && s.bos_yer > 0 && !rezerveli,

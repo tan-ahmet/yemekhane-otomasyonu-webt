@@ -9,6 +9,7 @@ import { RezervasyonModule } from './rezervasyon/rezervasyon.module';
 import { BakiyeModule } from './bakiye/bakiye.module';
 import { DegerlendirmeModule } from './degerlendirme/degerlendirme.module';
 import { YonetimModule } from './yonetim/yonetim.module';
+import { ProfilModule } from './profil/profil.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { YonetimModule } from './yonetim/yonetim.module';
     BakiyeModule,
     DegerlendirmeModule,
     YonetimModule,
+    ProfilModule,
   ],
 })
 export class AppModule {}

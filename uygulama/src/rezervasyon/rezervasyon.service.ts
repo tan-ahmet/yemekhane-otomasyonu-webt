@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { RezervasyonRepository } from './rezervasyon.repository';
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { Porsiyon, RezervasyonRepository } from './rezervasyon.repository';
 import { OturumKullanicisi, OturumService } from '../oturum/oturum.service';
 import { tamSayiAl } from '../ortak/dogrulama';
 
@@ -19,11 +19,19 @@ export class RezervasyonService {
     };
   }
 
-  async yap(kullanici: OturumKullanicisi, token: string, govde: { menu_id?: unknown }) {
+  async yap(kullanici: OturumKullanicisi, token: string, govde: { menu_id?: unknown; porsiyon?: unknown }) {
     const menuId = tamSayiAl(govde?.menu_id, 'Menü seçilmedi.');
-    const sonuc = await this.rezervasyonlar.yap(kullanici.id, menuId);
+    const porsiyon = govde?.porsiyon ?? 'tam';
+    if (porsiyon !== 'tam' && porsiyon !== 'yarim') throw new BadRequestException('Geçersiz porsiyon seçimi.');
+    const sonuc = await this.rezervasyonlar.yap(kullanici.id, menuId, porsiyon as Porsiyon);
     await this.oturum.yazmaYapildi(token, kullanici);
-    return { mesaj: 'Rezervasyonunuz alındı.', rezervasyon_id: sonuc.rezervasyon_id, ucret: sonuc.ucret, bakiye: sonuc.bakiye };
+    return {
+      mesaj: sonuc.porsiyon === 'yarim' ? 'Yarım porsiyon rezervasyonunuz alındı.' : 'Rezervasyonunuz alındı.',
+      rezervasyon_id: sonuc.rezervasyon_id,
+      porsiyon: sonuc.porsiyon,
+      ucret: sonuc.ucret,
+      bakiye: sonuc.bakiye,
+    };
   }
 
   async iptal(kullanici: OturumKullanicisi, token: string, idMetni: unknown) {

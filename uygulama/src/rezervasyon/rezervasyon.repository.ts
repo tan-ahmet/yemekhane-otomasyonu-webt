@@ -2,10 +2,13 @@ import { Inject, Injectable } from '@nestjs/common';
 import { Pool } from 'mysql2/promise';
 import { OKUMA_DB, YAZMA_DB, sorgula, yordamCagir } from '../veritabani/veritabani.module';
 
+export type Porsiyon = 'tam' | 'yarim';
+
 export interface RezervasyonSatiri {
   id: number;
   menu_id: number;
   durum: 'aktif' | 'kullanildi' | 'iptal';
+  porsiyon: Porsiyon;
   ucret: number;
   olusturma: string;
   kullanma_zamani: string | null;
@@ -24,8 +27,12 @@ export class RezervasyonRepository {
     @Inject(OKUMA_DB) private okuma: Pool,
   ) {}
 
-  yap(kullaniciId: number, menuId: number) {
-    return yordamCagir<{ rezervasyon_id: number; ucret: number; bakiye: number }>(this.yazma, 'sp_rezervasyon_yap', [kullaniciId, menuId]);
+  yap(kullaniciId: number, menuId: number, porsiyon: Porsiyon) {
+    return yordamCagir<{ rezervasyon_id: number; ucret: number; bakiye: number; porsiyon: Porsiyon }>(this.yazma, 'sp_rezervasyon_yap', [
+      kullaniciId,
+      menuId,
+      porsiyon,
+    ]);
   }
 
   iptal(kullaniciId: number, rezervasyonId: number) {
@@ -38,7 +45,7 @@ export class RezervasyonRepository {
   kullanicininRezervasyonlari(kullaniciId: number, kaynaktan: boolean) {
     return sorgula<RezervasyonSatiri>(
       kaynaktan ? this.yazma : this.okuma,
-      `SELECT r.id, r.menu_id, r.durum, r.ucret, r.olusturma, r.kullanma_zamani, r.iptal_zamani,
+      `SELECT r.id, r.menu_id, r.durum, r.porsiyon, r.ucret, r.olusturma, r.kullanma_zamani, r.iptal_zamani,
               m.tarih, yh.ad AS yemekhane, o.ad AS ogun,
               TIMESTAMP(m.tarih, o.son_saat) AS rezervasyon_son,
               (r.durum = 'aktif' AND TIMESTAMP(m.tarih, o.son_saat) > NOW()) AS iptal_edilebilir
