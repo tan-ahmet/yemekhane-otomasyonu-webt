@@ -82,7 +82,7 @@
           'div',
           {},
           el('strong', { metin: `${tarihYaz(r.tarih)} · ${r.ogun}` }),
-          el('div', { sinif: 'soluk', metin: r.yemekhane }),
+          el('div', { sinif: 'soluk' }, r.yemekhane + ' · ', r.porsiyon === 'yarim' ? el('span', { sinif: 'rozet rozet-sari', metin: 'Yarım porsiyon' }) : 'Tam porsiyon'),
           el('div', { sinif: 'soluk', metin: altBilgi(r) }),
         ),
         el('div', { sinif: 'sag' }, el('span', { sinif: rozetSinifi, metin: rozetMetni }), el('span', { sinif: 'fiyat', metin: tl(r.ucret) }), iptal),

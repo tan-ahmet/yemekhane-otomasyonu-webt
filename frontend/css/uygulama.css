@@ -122,3 +122,11 @@
   .sayfa-baslik h1 { font-size: 1.3rem; }
   .menu-ozet strong { font-size: 1rem; }
 }
+
+.porsiyon-secim { width: auto; min-height: 36px; padding: .3rem .5rem; font-size: var(--boyut-kucuk); }
+.alerjen-uyari { margin: 0; padding: .35rem .6rem; font-size: var(--boyut-kucuk); }
+.yemek-uyari { background: var(--hata-zemin); margin: 0 -1rem; padding-inline: 1rem; border-left: 4px solid var(--hata); }
+.menu-ozet small { display: block; font-size: .75rem; }
+.alerjen-izgara { display: grid; grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); gap: .4rem .75rem; margin-bottom: 1rem; }
+.alerjen-izgara .onay { border: 1px solid var(--cizgi); border-radius: var(--kose); padding: .45rem .6rem; min-height: 44px; }
+.alerjen-izgara .onay:has(input:checked) { border-color: var(--hata); background: var(--hata-zemin); }

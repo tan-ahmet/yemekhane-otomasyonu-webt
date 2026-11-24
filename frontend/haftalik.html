@@ -84,28 +84,34 @@
         title: m.pasif_nedeni,
         metin: m.rezerve_edilebilir ? 'Rezervasyon yap' : m.pasif_nedeni,
       });
-      dugme.addEventListener('click', () => rezervasyonYap(m, dugme));
+      const porsiyon = m.rezerve_edilebilir && m.yarim_fiyat !== null
+        ? el('select', { sinif: 'porsiyon-secim', 'aria-label': 'Porsiyon' },
+            el('option', { value: 'tam', metin: 'Tam · ' + tl(m.fiyat) }),
+            el('option', { value: 'yarim', metin: 'Yarım · ' + tl(m.yarim_fiyat) }))
+        : null;
+      dugme.addEventListener('click', () => rezervasyonYap(m, dugme, porsiyon ? porsiyon.value : 'tam'));
       const rozet = DURUM_ROZETI[m.rezervasyon_durum];
       return el(
         'article',
         { sinif: 'ogun-kart' + (m.rezerve_edilebilir ? '' : ' pasif') },
         el('div', { sinif: 'satir-arasi' }, el('span', { sinif: 'ogun-ad', metin: m.ogun }), el('span', { sinif: 'fiyat', metin: tl(m.fiyat) })),
         el('p', { sinif: 'ogun-yemekler', metin: m.yemekler }),
+        m.alerjen_uyarisi ? el('p', { sinif: 'bildirim bildirim-hata alerjen-uyari', metin: '⚠ Alerjen: ' + m.alerjen_uyarisi.join(', ') }) : null,
         el(
           'div',
           { sinif: 'satir-arasi kucuk-yazi' },
           el('span', { sinif: 'bos-yer' + (azYer ? ' az' : ''), metin: `${m.bos_yer} / ${m.kapasite} boş yer` }),
           el('span', { sinif: 'soluk', metin: 'Son: ' + saatYaz(m.rezervasyon_son) }),
         ),
-        el('div', { sinif: 'satir-arasi' }, rozet ? el('span', { sinif: rozet[1], metin: rozet[0] }) : el('span'), dugme),
+        el('div', { sinif: 'satir-arasi' }, rozet ? el('span', { sinif: rozet[1], metin: rozet[0] }) : el('span'), porsiyon, dugme),
       );
     }
 
-    async function rezervasyonYap(m, dugme) {
+    async function rezervasyonYap(m, dugme, porsiyon) {
       bildirimGizle($('bildirim'));
       await dugmeKilitle(dugme, async () => {
         try {
-          const sonuc = await api('/rezervasyonlar', { method: 'POST', govde: { menu_id: m.menu_id } });
+          const sonuc = await api('/rezervasyonlar', { method: 'POST', govde: { menu_id: m.menu_id, porsiyon } });
           ustBakiyeGuncelle(sonuc.bakiye);
           bildirimGoster($('bildirim'), `${sonuc.mesaj} Ücret: ${tl(sonuc.ucret)} · Kalan bakiye: ${tl(sonuc.bakiye)}`, 'basari');
           await haftayiYukle();

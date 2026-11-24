@@ -35,10 +35,11 @@
     <section id="menu-alani" class="kart" hidden>
       <h2 id="menu-baslik"></h2>
       <div class="menu-ozet">
-        <div><span>Ücretiniz</span><strong id="fiyat"></strong></div>
+        <div><span>Ücretiniz</span><strong id="fiyat"></strong><small id="yarim-fiyat" class="soluk"></small></div>
         <div><span>Toplam kalori</span><strong id="kalori"></strong></div>
         <div><span>Rezervasyon son</span><strong id="son-saat"></strong></div>
       </div>
+      <p id="alerjen-ozet" class="bildirim bildirim-hata" role="alert" hidden></p>
       <ul id="yemek-listesi" class="yemek-listesi"></ul>
       <p id="vejetaryen-bilgi" class="soluk"></p>
     </section>
@@ -86,6 +87,9 @@
     function menuyuCiz(menu) {
       $('menu-baslik').textContent = `${menu.yemekhane} · ${menu.ogun}`;
       $('fiyat').textContent = tl(menu.fiyat);
+      $('yarim-fiyat').textContent = menu.yarim_fiyat === null ? 'Yarım porsiyon yok' : 'Yarım porsiyon: ' + tl(menu.yarim_fiyat);
+      $('alerjen-ozet').hidden = !menu.uyari_sayisi;
+      $('alerjen-ozet').textContent = `Bu menüde profilinizde seçtiğiniz alerjenleri içeren ${menu.uyari_sayisi} yemek var.`;
       $('kalori').textContent = menu.toplam_kalori + ' kcal';
       $('son-saat').textContent = saatYaz(menu.rezervasyon_son);
       $('vejetaryen-bilgi').textContent = menu.tumu_vejetaryen ? 'Menünün tamamı vejetaryen.' : 'Menüde vejetaryen olmayan yemek var.';
@@ -96,12 +100,13 @@
     function yemekOgesi(yemek) {
       return el(
         'li',
-        { sinif: 'yemek' },
+        { sinif: 'yemek' + (yemek.uyari ? ' yemek-uyari' : '') },
         el('div', { sinif: 'yemek-ust' }, el('span', { metin: yemek.kategori }), el('span', { metin: yemek.kalori + ' kcal' })),
         el('div', { sinif: 'yemek-ad', metin: yemek.ad }),
         el(
           'div',
           { sinif: 'rozetler' },
+          yemek.uyari ? el('span', { sinif: 'rozet rozet-kirmizi', metin: '⚠ Alerjen uyarısı: ' + yemek.uyari.join(', ') }) : null,
           yemek.vejetaryen ? el('span', { sinif: 'rozet rozet-yesil', metin: 'Vejetaryen' }) : null,
           yemek.alerjenler.map((a) => el('span', { sinif: 'rozet rozet-sari', metin: a })),
         ),

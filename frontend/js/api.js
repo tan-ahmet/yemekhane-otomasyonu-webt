@@ -138,6 +138,7 @@ function ustMenuyuCiz(kullanici) {
     ['/rezervasyonlarim.html', 'Rezervasyonlarım'],
     ['/bakiye.html', 'Bakiye'],
     ['/degerlendirme.html', 'Değerlendirme'],
+    ['/profil.html', 'Profil'],
   ];
   if (kullanici.rol === 'yonetici') baglantilar.push(['/yonetici.html', 'Yönetici Paneli']);
   const simdiki = location.pathname === '/index.html' ? '/' : location.pathname;

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Profil · Yemekhane</title>
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/temel.css">
+  <link rel="stylesheet" href="/css/uygulama.css">
+</head>
+<body>
+  <main class="kapsayici sayfa">
+    <div class="sayfa-baslik"><h1>Profil</h1></div>
+    <p id="bildirim" hidden></p>
+    <section class="kart">
+      <h2 id="ad-soyad"></h2>
+      <p class="soluk" id="bilgi"></p>
+    </section>
+    <section class="kart">
+      <h2>Alerjenlerim</h2>
+      <p class="soluk">Seçtiğiniz alerjenleri içeren yemekler günün menüsünde ve haftalık menüde uyarıyla gösterilir.</p>
+      <form id="alerjen-formu">
+        <div class="alerjen-izgara" id="alerjenler"></div>
+        <button class="dugme" type="submit">Kaydet</button>
+      </form>
+    </section>
+  </main>
+
+  <script src="/js/api.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    async function baslat() {
+      try {
+        await oturumGerekli();
+        const profil = await api('/profil');
+        $('ad-soyad').textContent = `${profil.ad} ${profil.soyad}`;
+        $('bilgi').textContent = [profil.eposta, ROL_ADLARI[profil.rol], profil.ogrenci_no ? 'Öğrenci no: ' + profil.ogrenci_no : null].filter(Boolean).join(' · ');
+        $('alerjenler').replaceChildren(
+          ...profil.alerjenler.map((a) => el('label', { sinif: 'onay' }, el('input', { type: 'checkbox', name: 'alerjen', value: a.id, checked: a.secili }), a.ad)),
+        );
+        $('alerjen-formu').addEventListener('submit', kaydet);
+      } catch (hata) {
+        bildirimGoster($('bildirim'), hata.message);
+      }
+    }
+
+    async function kaydet(olay) {
+      olay.preventDefault();
+      const alerjen_idleri = [...document.querySelectorAll('input[name=alerjen]:checked')].map((k) => Number(k.value));
+      await dugmeKilitle($('alerjen-formu').querySelector('[type=submit]'), async () => {
+        try {
+          const sonuc = await api('/profil/alerjenler', { method: 'PUT', govde: { alerjen_idleri } });
+          bildirimGoster($('bildirim'), sonuc.mesaj, 'basari');
+        } catch (hata) {
+          bildirimGoster($('bildirim'), hata.message);
+        }
+      });
+    }
+
+    baslat();
+  </script>
+</body>
+</html>
