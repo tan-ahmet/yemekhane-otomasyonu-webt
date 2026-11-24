@@ -1,15 +1,61 @@
-# Yemekhane Otomasyonu · Başlangıç Paketi
+# Yemekhane Otomasyonu
 
-Web Teknolojileri dönem ödevinin hazır altyapısı. Veritabanı şeması, örnek veri, kaynak-replika
-replikasyonu, Redis ve Apache tek komutla çalışır. Sizin yazacağınız kısım **uygulama servisi ve arayüzdür**.
+Web Teknolojileri dönem ödevi · **Ahmet Tan · 241229023**
+
+Kampüs yemekhanesi için menü, rezervasyon ve bakiye işlemlerini yöneten, tamamen Docker
+container'ları üzerinde çalışan web uygulaması.
+
+| | |
+|---|---|
+| Mimari | **Web API + arayüz** |
+| API | NestJS 11 (Node.js 22, TypeScript), yalnızca JSON, `/api/` |
+| Arayüz | HTML5 + CSS3 + saf JavaScript (`fetch`), Apache'den sunulur |
+| Veritabanı | MySQL 8.4 kaynak (`YAZMA_DB`) + replika (`OKUMA_DB`), GTID replikasyonu |
+| Önbellek / oturum | Redis 7.4: `menu:{yemekhane_id}:{tarih}:{ogun_id}`, `oturum:{token}` |
+
+```bash
+docker compose up -d
+docker compose ps -a
+```
+
+Arayüz: <http://localhost:8090> · Test hesaplarının şifresi `Yemek2026!`
+(`leyla.arslan@kampus.edu.tr` yönetici, `murat.kaya@kampus.edu.tr` personel,
+`mehmet.yildiz@ogr.kampus.edu.tr` öğrenci).
+
+Aynı bilgisayardaki başka bir yemekhane kurulumuyla çakışmaması için compose proje adı
+`yemekhane-odev`, dış portlar 8090 (web), 3317 (kaynak), 3318 (replika), 6389 (Redis) olarak ayarlandı.
+
+## Uygulama yapısı
+
+Her özellik `uygulama/src/` altında kendi klasöründe, kendi modülüyle durur
+(`auth/`, `oturum/`, `menu/`, `rezervasyon/`, `bakiye/`, `degerlendirme/`, `yonetim/`, `profil/`, `saglik/`).
+Her klasörde controller (yalnızca servisi çağırır), service (iş kuralı ve girdi doğrulaması) ve
+repository (SQL) bulunur. Kaynak ve replika havuzları `veritabani/` modülünde `YAZMA_DB` ve
+`OKUMA_DB` olarak tanımlanır ve repository'lere `@Inject` ile verilir. Korumalı yollar
+`@UseGuards(OturumGuard)` ile işaretlidir; token `Authorization: Bearer` başlığıyla gönderilir.
+
+## Aşamalar (git etiketleri)
+
+| Etiket | İçerik |
+|---|---|
+| `asama-1` | Altyapı doğrulaması: compose, replikasyon, read-only replika, yeniden başlatmada yakalama |
+| `asama-2` | NestJS Web API, stored procedure kullanımı, yedi ekran, okuma/yazma ayrımı |
+| `asama-3` | Redis menü önbelleği ve oturum deposu |
+| `asama-4` | `db/init/04_degisiklik.sql`: yarım porsiyon ve alerjen uyarısı, Redis'te eski yapıdaki kayıtların temizlenmesi |
+
+Ekran görüntüleri `rapor/ekran/` klasöründedir.
+
+---
+
+# Başlangıç paketi notları
 
 ## Hızlı başlangıç
 
 Gerekenler: Docker Desktop (Windows/macOS) ya da Docker Engine + Compose v2 (Linux), Git.
 
 ```bash
-git clone <kendi-deponuz>
-cd yemekhane-baslangic
+git clone https://github.com/tan-ahmet/yemekhane-otomasyonu-webt.git
+cd yemekhane-otomasyonu-webt
 docker compose up -d
 docker compose ps -a
 ```
@@ -26,7 +72,7 @@ docker compose ps -a
 
 `replica-setup` yalnızca `docker compose ps -a` ile görünür (`-a` olmadan çıkmış container'lar listelenmez).
 
-Tarayıcıda: <http://localhost:8080>
+Tarayıcıda: <http://localhost:8090>
 
 ## Klasör yapısı
 
@@ -49,10 +95,10 @@ kendi bilgisayarınızdaki araçlar (DBeaver, MySQL Workbench, terminal) içindi
 
 | | Uygulamadan (container içi) | Bilgisayarınızdan |
 |---|---|---|
-| Yazma (kaynak) | `mysql-primary:3306` | `localhost:3307` |
-| Okuma (replika) | `mysql-replica:3306` | `localhost:3308` |
-| Redis | `redis:6379` | `localhost:6379` |
-| Web | — | `localhost:8080` |
+| Yazma (kaynak) | `mysql-primary:3306` | `localhost:3317` |
+| Okuma (replika) | `mysql-replica:3306` | `localhost:3318` |
+| Redis | `redis:6379` | `localhost:6389` |
+| Web | — | `localhost:8090` |
 
 | Hesap | Kullanıcı | Şifre |
 |---|---|---|
